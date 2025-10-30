@@ -11,31 +11,22 @@ seaborn>=0.11.0
 # or
 # gammaflow>=0.1.0
 
-# Machine Learning
+# Machine Learning (SAD detector uses PCA)
 scikit-learn>=1.0.0
-xgboost>=1.5.0
-lightgbm>=3.3.0
 
-# Deep Learning
-torch>=1.10.0  # Required for ARAD detector
-
-# Optional deep learning
-# tensorflow>=2.8.0
+# Deep Learning (ARAD detector)
+torch>=1.10.0
 
 # Jupyter and visualization
 jupyter>=1.0.0
 notebook>=6.4.0
 ipywidgets>=7.6.0
-plotly>=5.3.0
 
 # Utilities
 tqdm>=4.62.0
-pyyaml>=5.4.0
-joblib>=1.1.0
 
-# Testing and development
-pytest>=7.0.0
-pytest-cov>=3.0.0
-black>=22.0.0
-flake8>=4.0.0
-
+# Optional: Testing and development
+# pytest>=7.0.0
+# pytest-cov>=3.0.0
+# black>=22.0.0
+# flake8>=4.0.0

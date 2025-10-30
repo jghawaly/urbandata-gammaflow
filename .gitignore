@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environments
+venv/
+env/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# CEW notebook (keep local only, not for git)
+examples/cew_detection.ipynb
+
+# Cache directory for source spectra
+topcoder/.cache/

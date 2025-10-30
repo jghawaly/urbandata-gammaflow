@@ -21,5 +21,12 @@ env/
 # CEW notebook (keep local only, not for git)
 examples/cew_detection.ipynb
 
-# Cache directory for source spectra
-topcoder/.cache/
+# Trained models
+models/
+
+# topcoder directory
+topcoder/
+
+examples/nmf_detection.ipynb
+src/detectors/nmf.py
+junk/

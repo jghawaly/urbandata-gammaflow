@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "urbandata-gammaflow"
+version = "0.1.0"
+description = "AI-based radiation detection and identification using GammaFlow and TopCoder dataset"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "James Ghawaly Jr.", email = "jamesghawaly@gmail.com"}
+]
+keywords = ["gamma-ray", "radiation detection", "machine learning", "spectroscopy", "anomaly detection"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "numpy>=1.20.0",
+    "scipy>=1.7.0",
+    "pandas>=1.3.0",
+    "matplotlib>=3.3.0",
+    "seaborn>=0.11.0",
+    "scikit-learn>=1.0.0",
+    "xgboost>=1.5.0",
+    "lightgbm>=3.3.0",
+    "jupyter>=1.0.0",
+    "tqdm>=4.62.0",
+    "pyyaml>=5.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=3.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/jghawaly/urbandata-gammaflow"
+"Bug Tracker" = "https://github.com/jghawaly/urbandata-gammaflow/issues"
+Documentation = "https://github.com/jghawaly/urbandata-gammaflow/blob/main/README.md"
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+

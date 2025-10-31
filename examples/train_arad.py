@@ -183,7 +183,8 @@ def main():
         l1_lambda=L1_LAMBDA,
         l2_lambda=L2_LAMBDA,
         validation_split=VALIDATION_SPLIT,
-        verbose=True
+        verbose=True,
+        loss_type='chi2'
     )
     print()
     
@@ -208,7 +209,7 @@ def main():
     plt.plot(history['train_loss'], label='Training Loss', linewidth=2)
     plt.plot(history['val_loss'], label='Validation Loss', linewidth=2)
     plt.xlabel('Epoch', fontsize=12)
-    plt.ylabel('Loss (JSD)', fontsize=12)
+    plt.ylabel(f'Loss ({detector.loss_type})', fontsize=12)
     plt.title('ARAD Training History', fontsize=14, fontweight='bold')
     plt.legend(fontsize=11)
     plt.grid(True, alpha=0.3)

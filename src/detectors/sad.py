@@ -356,10 +356,13 @@ class SADDetector:
         scores = self.score_time_series(background_data)
         
         # Get total observation time in hours
-        if hasattr(background_data, 'timestamps') and background_data.timestamps is not None:
-            total_time_hours = (background_data.timestamps[-1] - background_data.timestamps[0]) / 3600.0
+        # Use sum of real_times (actual counting time) rather than timestamp span
+        # This is more accurate, especially when data has gaps or artificial offsets
+        if hasattr(background_data, 'real_times') and background_data.real_times is not None:
+            total_time_seconds = np.sum(background_data.real_times)
+            total_time_hours = total_time_seconds / 3600.0
         elif hasattr(background_data, 'spectra'):
-            # Estimate from spectra real times
+            # Fallback: extract from individual spectra
             total_time_seconds = sum(s.real_time for s in background_data.spectra)
             total_time_hours = total_time_seconds / 3600.0
         else:
@@ -376,6 +379,7 @@ class SADDetector:
         
         best_threshold = float(np.percentile(scores, initial_percentile))
         best_far_diff = float('inf')
+        best_observed_far = 0.0
         
         for iteration in range(max_iterations):
             # Try this threshold
@@ -388,10 +392,26 @@ class SADDetector:
             observed_far = n_alarms / total_time_hours
             
             # Check if this is the best so far
+            # Prefer lower thresholds (more sensitive) when we can't hit target exactly
             far_diff = abs(observed_far - alarms_per_hour)
+            is_better = False
+            
             if far_diff < best_far_diff:
+                # Closer to target
+                is_better = True
+            elif far_diff == best_far_diff:
+                # Same distance from target
+                if observed_far > best_observed_far:
+                    # Higher FAR (more sensitive) - prefer this
+                    is_better = True
+                elif observed_far == best_observed_far:
+                    # Same FAR - prefer lower threshold (more sensitive)
+                    is_better = test_threshold < best_threshold
+            
+            if is_better:
                 best_far_diff = far_diff
                 best_threshold = test_threshold
+                best_observed_far = observed_far
             
             # Adjust search range
             if observed_far > alarms_per_hour:

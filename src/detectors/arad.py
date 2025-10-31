@@ -203,6 +203,10 @@ class ARADDetector:
         Time gap (seconds) for aggregating consecutive alarms
     min_training_samples : int, default=100
         Minimum number of training samples required
+    loss_type : str, default='jsd'
+        Loss function to use for training: 'jsd' (Jensen-Shannon Divergence) or 
+        'chi2' (Chi-squared for Poisson data). Chi-squared operates on denormalized
+        counts and accounts for Poisson variance.
     verbose : bool, default=True
         Print training progress
     
@@ -231,6 +235,7 @@ class ARADDetector:
         threshold: Optional[float] = None,
         aggregation_gap: float = 2.0,
         min_training_samples: int = 100,
+        loss_type: str = 'jsd',
         verbose: bool = True
     ):
         if not TORCH_AVAILABLE:
@@ -248,7 +253,12 @@ class ARADDetector:
         self.threshold = threshold
         self.aggregation_gap = aggregation_gap
         self.min_training_samples = min_training_samples
+        self.loss_type = loss_type.lower()
         self.verbose = verbose
+        
+        # Validate loss type
+        if self.loss_type not in ['jsd', 'chi2']:
+            raise ValueError(f"loss_type must be 'jsd' or 'chi2', got '{loss_type}'")
         
         # Auto-select device
         if device is None:
@@ -319,28 +329,69 @@ class ARADDetector:
         
         return torch.sqrt(0.5 * (kld_pm + kld_qm)).mean()
     
-    def _compute_loss(self, y_true: torch.Tensor, y_pred: torch.Tensor) -> torch.Tensor:
+    def _chi2_loss(self, y_true: torch.Tensor, y_pred: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
         """
-        Compute total loss (JSD + L1 regularization).
+        Chi-squared loss for Poisson count data.
+        
+        Operates on denormalized counts for proper Poisson statistics.
         
         Parameters
         ----------
         y_true : torch.Tensor
-            True spectra (unnormalized) - will be normalized by model
+            True counts (denormalized)
         y_pred : torch.Tensor
-            Predicted spectra (normalized by model)
+            Predicted counts (denormalized)
+        eps : float
+            Small constant to prevent division by zero
+        
+        Returns
+        -------
+        torch.Tensor
+            Mean chi-squared across batch
+        """
+        # Ensure non-negative and avoid division by zero
+        y_pred = torch.clamp(y_pred, min=eps)
+        
+        # Chi-squared: sum((obs - exp)^2 / exp) / n_bins
+        chi2 = torch.sum((y_true - y_pred)**2 / y_pred, dim=-1)
+        
+        return chi2.mean()
+    
+    def _compute_loss(self, y_true: torch.Tensor, y_pred: torch.Tensor) -> torch.Tensor:
+        """
+        Compute total loss (JSD or Chi-squared + L1 regularization).
+        
+        Parameters
+        ----------
+        y_true : torch.Tensor
+            True spectra (unnormalized count rates)
+        y_pred : torch.Tensor
+            Predicted spectra (normalized by model, in [0,1])
         
         Returns
         -------
         torch.Tensor
             Total loss
         """
-        # Model now normalizes internally, so y_pred is already normalized
-        # We need to normalize y_true the same way for comparison
-        y_true_norm = self._normalize_spectrum(y_true)
+        if self.loss_type == 'jsd':
+            # JSD loss operates on normalized spectra
+            y_true_norm = self._normalize_spectrum(y_true)
+            recon_loss = self._jsd_loss(y_true_norm, y_pred)
         
-        # Reconstruction loss  
-        recon_loss = self._jsd_loss(y_true_norm, y_pred)
+        elif self.loss_type == 'chi2':
+            # Chi-squared loss operates on denormalized counts
+            # Get max values for denormalization
+            eps = 1e-8
+            if y_true.dim() == 1:
+                max_vals = torch.max(y_true)
+            else:
+                max_vals = torch.max(y_true, dim=1, keepdim=True).values
+            
+            # Denormalize predictions back to count rate scale
+            y_pred_denorm = y_pred * (max_vals + eps)
+            
+            # Compute chi-squared loss
+            recon_loss = self._chi2_loss(y_true, y_pred_denorm)
         
         # L1 regularization
         l1_norm = sum(param.abs().sum() for param in self.model_.parameters())
@@ -410,6 +461,7 @@ class ARADDetector:
         
         if self.verbose:
             print(f"Training on {len(train_data)} spectra, validating on {len(val_data)}")
+            print(f"Loss function: {self.loss_type.upper()}")
         
         # Convert to PyTorch tensors
         train_tensor = torch.FloatTensor(train_data).to(self.device)
@@ -516,7 +568,7 @@ class ARADDetector:
         Returns
         -------
         float
-            Anomaly score (JSD between input and reconstruction)
+            Anomaly score (JSD or Chi-squared depending on loss_type)
         """
         if not self.is_fitted_:
             raise RuntimeError("Detector must be fitted before scoring")
@@ -539,12 +591,19 @@ class ARADDetector:
         with torch.no_grad():
             reconstructed = self.model_(x)
         
-        # Normalize both
-        x_norm = self._normalize_spectrum(x)
-        reconstructed_norm = self._normalize_spectrum(reconstructed)
+        # Compute score based on loss type used during training
+        if self.loss_type == 'jsd':
+            # Normalize both for JSD
+            x_norm = self._normalize_spectrum(x)
+            reconstructed_norm = self._normalize_spectrum(reconstructed)
+            score = self._jsd_loss(x_norm, reconstructed_norm).item()
         
-        # Compute JSD
-        score = self._jsd_loss(x_norm, reconstructed_norm).item()
+        elif self.loss_type == 'chi2':
+            # Denormalize for chi-squared (need counts, not normalized)
+            eps = 1e-8
+            max_val = torch.max(x)
+            reconstructed_denorm = reconstructed * (max_val + eps)
+            score = self._chi2_loss(x, reconstructed_denorm).item()
         
         return score
     
@@ -818,6 +877,7 @@ class ARADDetector:
             'latent_dim': self.latent_dim,
             'dropout': self.dropout,
             'threshold': self.threshold,
+            'loss_type': self.loss_type,
             'training_history': self.training_history_
         }
         
@@ -841,6 +901,7 @@ class ARADDetector:
         self.latent_dim = save_dict['latent_dim']
         self.dropout = save_dict['dropout']
         self.threshold = save_dict['threshold']
+        self.loss_type = save_dict.get('loss_type', 'jsd')  # Default to jsd for backward compatibility
         self.training_history_ = save_dict.get('training_history', {})
         
         self.model_ = ARADAutoencoder(

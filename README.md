@@ -255,7 +255,7 @@ Contributions are welcome! Areas of interest:
 
 ## License
 
-MIT License
+BSD 3-Clause License - see [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
